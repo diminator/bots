@@ -12,10 +12,20 @@ def parse_bot_commands(slack_events, bot_id):
     commands, events = [], []
     for event in slack_events:
         print('slack::event::', event)
+
         direct_mention = parse_direct_mention(event, bot_id)
         if direct_mention:
             events.append(event)
             commands.append(direct_mention)
+
+        reaction = parse_reaction(event)
+        if reaction:
+            print(reaction)
+
+        self_message = parse_self_message(event, bot_id)
+        if self_message:
+            events.append(event)
+            commands.append(self_message)
 
     return commands, events
 
@@ -47,4 +57,14 @@ def parse_reaction(event):
     if 'type' in event and event['type'].startswith('reaction_'):
         return '{} {}'.format(event['type'], event['reaction'], event['user'])
 
+    return None
+
+
+def parse_self_message(event, user_id):
+    """
+        Finds a direct mention (a mention that is at the beginning) in message text
+        and returns the user ID which was mentioned. If there is no direct mention, returns None
+    """
+    if event["type"] == "message" and "subtype" in event:
+        return "self"
     return None
