@@ -2,7 +2,7 @@ from .render import (
     render_choice,
 )
 
-from ..models.song import get_track
+from ..models.model import get_track
 
 EXAMPLE_COMMAND = "info"
 
@@ -83,8 +83,8 @@ def handle_command_list_genres(args, bot, limit=3):
 
 
 def handle_command_add_genre(args, event, bot):
-    bot.put('genre', event)
-    bot.pull()
+    tx = bot.put('genre', event)
+    bot.pull(tx_id=tx['id'])
     bot.store['active']['genre'] = -1
     attachments = [
         bot.active_genre.render(bot),
@@ -133,8 +133,8 @@ def handle_command_add_song(args, event, bot):
         event['metadata'] = {}
         print(e)
     event['metadata']['uri'] = track_uri
-    bot.put('song', event)
-    bot.pull()
+    tx = bot.put('song', event)
+    bot.pull(tx_id=tx['id'])
     bot.store['active']['song'] = -1
     attachments = [
         bot.active_song.render(bot),
@@ -150,13 +150,18 @@ def handle_command_add_song(args, event, bot):
 
 
 def handle_command_map(args, event, bot):
+    song = None
     if 'spotify:track' in args[0]:
         song = get_song_by_uri(bot, args[0][1:-1])
-        if not song:
-            handle_command_add_song([args[0]], event, bot)
-            song = get_song_by_uri(bot, args[0][1:-1])
     else:
-        song = bot.store['songs'][args[0]]
+        try:
+            song = bot.store['songs'][args[0]]
+        except Exception as e:
+            print(e)
+
+    if not song:
+        handle_command_add_song([args[0]], event, bot)
+        song = get_song_by_uri(bot, args[0][1:-1])
 
     genre = get_genre_by_name(bot, args[1])
     if not genre:
@@ -165,8 +170,9 @@ def handle_command_map(args, event, bot):
 
     event['map'] = genre.value
 
+    bot.pull(tx_id=song.id)
     bot.put('map', event, song.recent)
-    bot.pull()
+    bot.pull(tx_id=song.id)
 
     attachments = [
         bot.active_song.render(bot),

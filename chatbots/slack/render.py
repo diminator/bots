@@ -35,7 +35,7 @@ def generate_default_response(
         "fallback": "Could not render",
         "color": "#cc99ff",
         "pretext": None,
-        "author_name": "ID: {}".format(tx_id),
+        "author_name": "{}".format(tx_id),
         "author_link": tx_uri,
         "author_icon": None,
         "title": title,

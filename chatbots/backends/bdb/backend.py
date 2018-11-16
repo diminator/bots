@@ -1,21 +1,19 @@
 from bigchaindb_driver.exceptions import BadRequest
 
-from chatbots.backends.bdb.utils import (
-    prepare_transfer_ed25519_simple,
-    sign_ed25519,
-)
-
 
 def get(query, connection):
     query = "\"{}\"".format(query)
 
-    print('bdb::get::{}'.format(query))
+    print('bdb::get::query:{}'.format(query))
     assets = connection.assets.get(search=query)
-    print('bdb::result::len {}'.format(len(assets)))
-    return assets
+    metadata = connection.metadata.get(search=query)
+    print('bdb::result:: #assets: {} - #metadata: {}'
+          .format(len(assets), len(metadata)))
+    return assets, metadata
 
 
 def history(asset_id, connection):
+    print('bdb::get::id:{}'.format(asset_id))
     return connection.transactions.get(asset_id=asset_id)
 
 

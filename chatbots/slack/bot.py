@@ -13,8 +13,7 @@ from .render import render_response
 from ..backends.bdb.utils import generate_key_pair
 from ..backends.bdb import backend
 
-from ..models.genre import Genre
-from ..models.song import Song
+from ..models.model import Model, Genre, Song
 
 
 class SlackBot:
@@ -55,10 +54,10 @@ class SlackBot:
         self.connections = {
             'spotify': spotipy.Spotify(
                 auth=spotipy.util.prompt_for_user_token(
-                    'sodimiphie',
+                    os.environ.get('SPOTIFY_USER', ''),
                     'user-library-read',
-                    client_id='0c08bb17e0094be38a72d4ce9fa3eccc',
-                    client_secret='ccdcfb9843524e22ac1e41dd5f572c2f',
+                    client_id=os.environ.get('SPOTIFY_CLIENT_ID', ''),
+                    client_secret=os.environ.get('SPOTIFY_CLIENT_SECRET', ''),
                     redirect_uri="http://localhost:3000/callback/")
                 ),
             'slack': SlackClient(self.options['slack']['token']),
@@ -107,28 +106,39 @@ class SlackBot:
             self.pull()
         return is_connected
 
-    def pull(self, query=None):
-        assets = backend.get(query=self.namespace + (query or ""),
-                             connection=self.connections['bdb'])
-        genres = {}
-        songs = {}
-        for asset in assets:
-            if 'type' in asset['data']:
-                if asset['data']['type'] == 'genre':
-                    genre = Genre(self.connections['bdb'], asset['id'])
-                    genres[asset['id']] = genre
-
-                elif asset['data']['type'] == 'song':
-                    song = Song(self.connections['bdb'], asset['id'])
-                    songs[asset['id']] = song
-
-        self.store.update({
-            'genres': genres,
-            'songs': songs
-        })
-        return genres
+    def pull(self, query=None, tx_id=None):
+        if tx_id:
+            tx_data = backend.history(tx_id, connection=self.connections['bdb'])
+            item = Model.factory(tx_data)
+            if isinstance(item, Genre):
+                self.store['genres'][item.id] = item
+            elif isinstance(item, Song):
+                self.store['songs'][item.id] = item
+        else:
+            assets, metadata = backend.get(query=self.namespace + (query or ""),
+                                           connection=self.connections['bdb'])
+            genres = {}
+            songs = {}
+            for asset in assets:
+                if 'type' in asset['data']:
+                    metadatum = [metadatum
+                                 for metadatum in metadata
+                                 if metadatum['id'] == asset['id']][0]
+                    item = Model.factory(metadatum)
+                    if isinstance(item, Genre):
+                        genres[item.id] = item
+                    elif isinstance(item, Song):
+                        songs[item.id] = item
+            self.store.update({
+                'genres': genres,
+                'songs': songs
+            })
+            return genres
 
     def put(self, data_type, data, unspent=None):
+        if unspent and 'operation' not in unspent:
+            print(unspent)
+            pass
         return backend.put(
             asset={
                 'namespace': '{}.{}'.format(self.namespace, data_type),
