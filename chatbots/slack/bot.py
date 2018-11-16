@@ -30,6 +30,7 @@ class SlackBot:
             },
             'genres': {},
             'songs': {},
+            'messages': {},
             'users': {}
         }
         self.options = options if options else \

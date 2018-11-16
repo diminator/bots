@@ -71,6 +71,16 @@ class Song(Model):
                     genres.append(event['metadata']['event']['map'])
         return genres
 
+    @property
+    def reactions(self):
+        reactions = []
+        if len(self.tx_data) > 1:
+            for event in self.tx_data[1:]:
+                event_type = event['metadata']['type']
+                if event_type == "reaction":
+                    reactions.append(event['metadata']['event']['reaction'])
+        return reactions
+
     def render(self, bot):
         user_id = self.recent['metadata']['event']['user']
         user_name = bot.store['users'][user_id]['profile']['display_name']
@@ -82,15 +92,26 @@ class Song(Model):
             thumb_url = self.data['event']['metadata']['album']['images'][2]['url']
         except (AttributeError, KeyError):
             thumb_url = None
+
+        if 'inputs' in self.tx_data[0]:
+            genres = 'genres: {} / reactions:{}'.format(", ".join(self.genres), ", ".join(self.reactions))
+        else:
+            genres = 'load genres with "songs get {}"'.format(self.uri)
+
+        try:
+            footer = "#{} @{}".format(self.recent['metadata']['event']['channel'], user_name)
+        except (AttributeError, KeyError):
+            footer = None
+
         return generate_default_response(
             tx_id=self.uri,
             tx_uri="{}api/v1/transactions/{}".format(bot.options['bdb']['uri'], self.id),
             title='{} - {}'.format(self.artist, self.title),
             title_link=title_link,
-            field_title='genres: {}'.format(", ".join(self.genres)),
+            field_title=genres,
             field_value='musicmap::{}'.format(self.namespace.split('.')[-1]),
             thumb_url=thumb_url,
-            footer="#{} @{}".format(self.recent['metadata']['event']['channel'], user_name),
+            footer=footer,
             ts=self.recent['metadata']['event']['ts']
         )
 

@@ -34,6 +34,9 @@ def handle_command(command, event, bot):
     if cmd == 'self':
         response, success = handle_command_self(args, event, bot)
 
+    if 'reaction_' in cmd:
+        response, success = handle_command_reaction(args, event, bot)
+
     print('slack::cmd::{}::success::{}'.format(command, success))
     return success, response
 
@@ -49,8 +52,9 @@ Here's what I can do:
 \t*genres*: list genres
 \t*genres* add <#genre>: add #genre to the list of genres
 \t*songs*: list songs
-\t*songs* add <spotifyURI>: add song to the list of songs by spotifyURI
-\t*map* <spotifyURI> <#genre>: map a song to a genre
+\t*songs* add _<spotifyURI>_: add song to the list of songs by _<spotifyURI>_
+\t*songs* get _<spotifyURI>_: get song with _<spotifyURI>_
+\t*map* _<spotifyURI>_ <#genre>: map a song to a genre
 
 Not sure? try *songs* or *genres*
     """, True
@@ -77,9 +81,9 @@ def handle_command_list_genres(args, bot, limit=3):
     ]
 
     return {
-       'text': text,
-       'attachments': attachments
-    }, True
+               'text': text,
+               'attachments': attachments
+           }, True
 
 
 def handle_command_add_genre(args, event, bot):
@@ -94,9 +98,9 @@ def handle_command_add_genre(args, event, bot):
     text = "Genre {} added".format(bot.active_genre.value)
 
     return {
-        'text': text,
-        'attachments': attachments
-    }, True
+               'text': text,
+               'attachments': attachments
+           }, True
 
 
 def handle_command_songs(args, event, bot, limit=3):
@@ -104,6 +108,8 @@ def handle_command_songs(args, event, bot, limit=3):
         return handle_command_list_songs(args, bot, limit)
     elif args[0] == 'add':
         return handle_command_add_song(args, event, bot)
+    elif args[0] == 'get':
+        return handle_command_get_song(args, event, bot)
     return None, False
 
 
@@ -120,9 +126,9 @@ def handle_command_list_songs(args, bot, limit=3):
     ]
 
     return {
-       'text': text,
-       'attachments': attachments
-    }, True
+               'text': text,
+               'attachments': attachments
+           }, True
 
 
 def handle_command_add_song(args, event, bot):
@@ -144,24 +150,44 @@ def handle_command_add_song(args, event, bot):
     text = "Song {} added".format(bot.active_song.title)
 
     return {
-        'text': text,
-        'attachments': attachments
-    }, True
+               'text': text,
+               'attachments': attachments
+           }, True
+
+
+def handle_command_get_song(args, event, bot):
+    song = None
+    song_id = args[1]
+    if 'spotify:track' in song_id:
+        song = get_song_by_uri(bot, song_id[1:-1])
+    else:
+        try:
+            song = bot.store['songs'][song_id]
+        except Exception as e:
+            print(e)
+    if not song:
+        handle_command_add_song([song_id], event, bot)
+        song = get_song_by_uri(bot, song_id[1:-1])
+
+    bot.pull(tx_id=song.id)
+    song = get_song_by_uri(bot, song.uri)
+
+    attachments = [
+        song.render(bot),
+        # render_choice(['withdraw', 'challenge'], bot)
+    ]
+
+    text = "Song *{} - {}*".format(song.artist, song.title)
+
+    return {
+               'text': text,
+               'attachments': attachments
+           }, True
 
 
 def handle_command_map(args, event, bot):
-    song = None
-    if 'spotify:track' in args[0]:
-        song = get_song_by_uri(bot, args[0][1:-1])
-    else:
-        try:
-            song = bot.store['songs'][args[0]]
-        except Exception as e:
-            print(e)
-
-    if not song:
-        handle_command_add_song([args[0]], event, bot)
-        song = get_song_by_uri(bot, args[0][1:-1])
+    handle_command_get_song(['get', *args], event, bot)
+    song = get_song_by_uri(bot, args[0][1:-1])
 
     genre = get_genre_by_name(bot, args[1])
     if not genre:
@@ -182,24 +208,46 @@ def handle_command_map(args, event, bot):
     text = "Song *{} - {}* mapped to genre *{}*".format(song.artist, song.title, genre.value)
 
     return {
-        'text': text,
-        'attachments': attachments
-    }, True
+               'text': text,
+               'attachments': attachments
+           }, True
 
 
 def handle_command_self(args, event, bot):
-    bot.connections['slack'].api_call(
-        "reactions.add",
-        channel=event['channel'],
-        name="thumbsup",
-        timestamp=event['ts']
-    )
-    bot.connections['slack'].api_call(
-        "reactions.add",
-        channel=event['channel'],
-        name="thumbsdown",
-        timestamp=event['ts']
-    )
+    if 'attachments' in event \
+            and len(event['attachments']) == 1 \
+            and event['text'][:4] == 'Song':
+        bot.connections['slack'].api_call(
+            "reactions.add",
+            channel=event['channel'],
+            name="thumbsup",
+            timestamp=event['ts']
+        )
+        bot.connections['slack'].api_call(
+            "reactions.add",
+            channel=event['channel'],
+            name="thumbsdown",
+            timestamp=event['ts']
+        )
+        bot.store['messages'][event['ts']] = event
+    return None, True
+
+
+def handle_command_reaction(args, event, bot):
+    msg = bot.store['messages'].get(event['item']['ts'])
+    if msg:
+        song = get_song_by_uri(bot, msg['attachments'][0]['author_name'])
+        bot.pull(tx_id=song.id)
+        event['reaction'] = args[0]
+        bot.put('reaction', event, song.recent)
+        bot.pull(tx_id=song.id)
+        text = "Reaction *{}* added to song *{} - {}*".format(args[0], song.artist, song.title)
+
+        return {
+                   'text': text,
+                   'attachments': []
+               }, True
+
     return None, True
 
 
