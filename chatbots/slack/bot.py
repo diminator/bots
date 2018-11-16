@@ -1,10 +1,14 @@
-import os
+import os, sys
 import datetime
+import logging
 
 from slackclient import SlackClient
 import spotipy.util
 
 from bigchaindb_driver import BigchainDB
+
+import configparser
+
 
 from .parser import parse_bot_commands
 from .commands import handle_command
@@ -15,14 +19,27 @@ from ..backends.bdb import backend
 
 from ..models.model import Model, Genre, Song
 
+if 'CONFIG_FILE' in os.environ and os.environ['CONFIG_FILE']:
+    CONFIG = os.environ['CONFIG_FILE']
+else:
+    try:
+        CONFIG = 'config.ini'
+    except Exception as e:
+        logging.error('A config file must be set in the environment variable "CONFIG_FILE" or in config.ini')
+        logging.error(e)
+        sys.exit(1)
+
+conf = configparser.ConfigParser()
+conf.read(CONFIG)
+
 
 class SlackBot:
 
     version = 'v0.0.2.0'
 
     def __init__(self, name=None, store=None, options=None):
-        self.name = name if name else os.environ.get('SLACK_BOT_NAME', 'alice')
-        secret = os.environ.get('SLACK_BOT_TOKEN_{}'.format(self.name), '')
+        self.name = name if name else conf['slack']['name']
+        secret = conf['slack']['token']
         self.store = store if store else {
             'active': {
                 'genre': -1,
@@ -43,22 +60,19 @@ class SlackBot:
                     'rtm_read_delay': 1,
                 },
                 'bdb': {
-                    'uri': 'https://test.bigchaindb.com/',
+                    'uri': conf['bigchaindb']['uri'],
                     'key_pair': generate_key_pair(secret),
-                    'token': {
-                        'app_id': os.environ.get('BDB_APP_ID', ''),
-                        'app_key': os.environ.get('BDB_APP_KEY', '')
-                    }
+                    'token': {}
                 }
             }
 
         self.connections = {
             'spotify': spotipy.Spotify(
                 auth=spotipy.util.prompt_for_user_token(
-                    os.environ.get('SPOTIFY_USER', ''),
+                    conf['spotify']['user'],
                     'user-library-read',
-                    client_id=os.environ.get('SPOTIFY_CLIENT_ID', ''),
-                    client_secret=os.environ.get('SPOTIFY_CLIENT_SECRET', ''),
+                    client_id=conf['spotify']['client.id'],
+                    client_secret=conf['spotify']['client.secret'],
                     redirect_uri="http://localhost:3000/callback/")
                 ),
             'slack': SlackClient(self.options['slack']['token']),
