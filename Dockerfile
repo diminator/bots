@@ -23,7 +23,7 @@ WORKDIR /chatbots
 RUN pip install -e .
 
 # config.ini configuration file variables
-ENV SLACK_BOT_NAME=''
+ENV SLACK_BOT_NAME='maestro'
 ENV SLACK_BOT_TOKEN_maestro=''
 ENV BDB_URI='https://test.bigchaindb.com'
 ENV SPOTIFY_USER=''
