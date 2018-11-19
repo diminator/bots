@@ -43,7 +43,7 @@ def handle_command(command, event, bot):
 
 def handle_command_help():
     return """
-Hi there, I'm a curation agent 
+Hi there, I'm a music curation agent 
     
 Here's what I can do:
 
@@ -103,7 +103,7 @@ def handle_command_add_genre(args, event, bot):
            }, True
 
 
-def handle_command_songs(args, event, bot, limit=3):
+def handle_command_songs(args, event, bot, limit=10):
     if len(args) == 0:
         return handle_command_list_songs(args, bot, limit)
     elif args[0] == 'add':
@@ -113,7 +113,7 @@ def handle_command_songs(args, event, bot, limit=3):
     return None, False
 
 
-def handle_command_list_songs(args, bot, limit=3):
+def handle_command_list_songs(args, bot, limit):
     songs = bot.sorted_songs
 
     text = """
@@ -121,7 +121,7 @@ def handle_command_list_songs(args, bot, limit=3):
             """.format(len(songs), limit)
 
     attachments = [
-        song.render(bot)
+        song.render(bot, size='small')
         for song in songs[::-1][:limit]
     ]
 

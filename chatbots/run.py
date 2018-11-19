@@ -8,6 +8,7 @@ if __name__ == "__main__":
 
     if bot.connect():
         print("Starter Bot connected and running!")
+
         # Read bot's user ID by calling Web API method `auth.test`
         while True:
             response, channel = None, None

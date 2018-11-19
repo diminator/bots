@@ -1,4 +1,7 @@
-from ..slack.render import generate_default_response
+from ..slack.render import (
+    generate_default_response,
+    generate_small_response
+)
 
 
 class Model:
@@ -81,7 +84,7 @@ class Song(Model):
                     reactions.append(event['metadata']['event']['reaction'])
         return reactions
 
-    def render(self, bot):
+    def render(self, bot, size='normal'):
         user_id = self.recent['metadata']['event']['user']
         user_name = bot.store['users'][user_id]['profile']['display_name']
         try:
@@ -103,7 +106,11 @@ class Song(Model):
         except (AttributeError, KeyError):
             footer = None
 
-        return generate_default_response(
+        render = generate_default_response
+        if size == 'small':
+            render = generate_small_response
+
+        return render(
             tx_id=self.uri,
             tx_uri="{}api/v1/transactions/{}".format(bot.options['bdb']['uri'], self.id),
             title='{} - {}'.format(self.artist, self.title),

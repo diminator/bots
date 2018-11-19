@@ -11,7 +11,10 @@ import configparser
 
 
 from .parser import parse_bot_commands
-from .commands import handle_command
+from .commands import (
+    handle_command,
+    handle_command_help
+)
 from .render import render_response
 
 from ..backends.bdb.utils import generate_key_pair

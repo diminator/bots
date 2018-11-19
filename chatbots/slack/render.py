@@ -22,6 +22,34 @@ def render_choice(choices, bot):
     }
 
 
+def generate_small_response(
+        tx_id, tx_uri,
+        title=None,
+        title_link=None,
+        field_title=None,
+        field_value=None,
+        thumb_url=None,
+        footer=None,
+        ts=None):
+    return {
+        "fallback": "Could not render",
+        "color": "#cc99ff",
+        "pretext": None,
+        "author_name": "{}".format(tx_id),
+        "author_link": tx_uri,
+        "author_icon": None,
+        "title": title,
+        "title_link": title_link,
+        "text": "\n",
+        "fields": [],
+        "image_url": None,
+        "thumb_url": None,
+        "footer": None,
+        "footer_icon": None,
+        "ts": None
+    }
+
+
 def generate_default_response(
         tx_id, tx_uri,
         title=None,
