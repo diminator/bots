@@ -1,0 +1,11 @@
+[slack]
+name = ${SLACK_BOT_NAME}
+token = ${SLACK_BOT_TOKEN_maestro}
+
+[bigchaindb]
+uri = ${BDB_URI}
+
+[spotify]
+user = ${SPOTIFY_USER}
+client.id = ${SPOTIFY_CLIENT_ID}
+client.secret = ${SPOTIFY_CLIENT_SECRET}

@@ -1,4 +1,8 @@
-from chatbots.slack.render import render_topic, render_choice
+from .render import (
+    render_choice,
+)
+
+from ..models.model import get_track
 
 EXAMPLE_COMMAND = "info"
 
@@ -18,23 +22,20 @@ def handle_command(command, event, bot):
     if cmd == 'help':
         response, success = handle_command_help()
 
-    if cmd == 'get':
-        response, success = handle_command_get(command, event, bot)
+    if cmd == 'genres':
+        response, success = handle_command_genres(args, event, bot)
 
-    if cmd == 'list':
-        response, success = handle_command_list(args, bot)
+    if cmd == 'songs':
+        response, success = handle_command_songs(args, event, bot)
 
-    if cmd == 'accounts':
-        response, success = handle_command_accounts(bot)
+    if cmd == 'map':
+        response, success = handle_command_map(args, event, bot)
 
-    if cmd == 'pull':
-        response, success = handle_command_pull(args, bot)
+    if cmd == 'self':
+        response, success = handle_command_self(args, event, bot)
 
-    if cmd == 'signal':
-        response, success = handle_command_signal(command, event, bot)
-
-    if cmd == 'propose':
-        response, success = handle_command_propose(command, args, event, bot)
+    if 'reaction_' in cmd:
+        response, success = handle_command_reaction(args, event, bot)
 
     print('slack::cmd::{}::success::{}'.format(command, success))
     return success, response
@@ -42,75 +43,41 @@ def handle_command(command, event, bot):
 
 def handle_command_help():
     return """
-Hi there, I'm a curation agent 
+Hi there, I'm a music curation agent 
     
 Here's what I can do:
 
 \t*info*: this screen
 \t*accounts*: list account balances
-\t*list*: list topics
-\t*get* _topic_: activate topic
-\t*pull* _query_: pull topics with query
-\t*signal*: signal a new topic
-\t*propose* _deposit_: propose the active topic
-\t(challenge): challenge the active proposal
-\t(vote) *{true|false}* _deposit_: vote on the active challenge
+\t*genres*: list genres
+\t*genres* add <#genre>: add #genre to the list of genres
+\t*songs*: list songs
+\t*songs* add _<spotifyURI>_: add song to the list of songs by _<spotifyURI>_
+\t*songs* get _<spotifyURI>_: get song with _<spotifyURI>_
+\t*map* _<spotifyURI>_ <#genre>: map a song to a genre
 
-\t(under construction)
-
-Not sure? try *pull*, *get* or *signal*
+Not sure? try *songs* or *genres*
     """, True
 
 
-def handle_command_accounts(bot):
-    text = "\n".join(['{}: {}'.format(bot.store['users'][k]['profile']['display_name'], v) for k, v in bot.balance().items()])
-    return {
-            'text': text,
-            'attachments': []
-        }, True
+def handle_command_genres(args, event, bot, limit=3):
+    if len(args) == 0:
+        return handle_command_list_genres(args, bot, limit)
+    elif args[0] == 'add':
+        return handle_command_add_genre(args, event, bot)
+    return None, False
 
 
-def handle_command_get(command, event, bot):
-    text, attachments = "", []
-
-    args = command.split(' ')
-    index = int(args[1]) if len(args) > 1 else bot.store['active']
-    bot.store['active'] = index
-
-    if len(bot.store['topics']) == 0:
-        bot.pull()
-
-    try:
-        active_topic = bot.active_topic
-        active_topic.load(bot.connections['bdb'])
-        attachments = [
-            render_topic(topic_event, bot) for topic_event in active_topic.history
-        ]
-
-        text = "Active topic is now {}".format(index)
-    except TypeError as e:
-        text = str(e)
-    except IndexError as e:
-        text = str(e)
-
-    return {
-            'text': text,
-            'attachments': attachments
-        }, True
-
-def handle_command_list(args, bot, limit=3):
-    topics = bot.sorted_topics
+def handle_command_list_genres(args, bot, limit=3):
+    genres = bot.sorted_genres
 
     text = """
-    {} topics loaded, use *get* _index_ for activating a topic. 
-    Negative indices are allowed and count backwards    
-
-    Here are the newest {}:
-            """.format(len(topics), limit)
+    {} genres loaded, here are the latest {}:
+            """.format(len(genres), limit)
 
     attachments = [
-        render_topic(topic, bot)
-        for topic in topics[::-1][:limit]
+        genre.render(bot)
+        for genre in genres[::-1][:limit]
     ]
 
     return {
@@ -119,51 +86,180 @@ def handle_command_list(args, bot, limit=3):
            }, True
 
 
-def handle_command_pull(args, bot, limit=3):
-    query = " ".join(args) if len(args) > 0 else None
-    bot.pull(query)
-    return handle_command_list(args, bot, limit)
-
-
-def handle_command_signal(command, event, bot):
-    bot.put(command, event)
-    bot.pull()
-    bot.store['active'] = -1
+def handle_command_add_genre(args, event, bot):
+    tx = bot.put('genre', event)
+    bot.pull(tx_id=tx['id'])
+    bot.store['active']['genre'] = -1
     attachments = [
-        render_topic(bot.active_topic, bot),
+        bot.active_genre.render(bot),
         render_choice(['propose'], bot)
     ]
 
-    text = "Signal appended to the ledger"
+    text = "Genre {} added".format(bot.active_genre.value)
 
     return {
-            'text': text,
-            'attachments': attachments
-        }, True
+               'text': text,
+               'attachments': attachments
+           }, True
 
 
-def handle_command_propose(command, args, event, bot):
-    if bot.active_topic is None \
-            or 'tx' not in bot.active_topic.recent\
-            or len(args) == 0:
-        return 'Try *get* first or adding a deposit', False
+def handle_command_songs(args, event, bot, limit=10):
+    if len(args) == 0:
+        return handle_command_list_songs(args, bot, limit)
+    elif args[0] == 'add':
+        return handle_command_add_song(args, event, bot)
+    elif args[0] == 'get':
+        return handle_command_get_song(args, event, bot)
+    return None, False
 
-    if not args[0].isdigit() or args[0] == '0':
-        return 'Try valid positive integer deposit: 1, 3, 10, ...', False
 
-    if bot.active_topic.recent['data']['message'].split(' ')[0] != 'signal':
-        return 'Already proposed', False
+def handle_command_list_songs(args, bot, limit):
+    songs = bot.sorted_songs
 
-    bot.put(command, event, bot.active_topic.recent['tx'])
+    text = """
+    {} songs loaded, here are the latest {}:
+            """.format(len(songs), limit)
 
     attachments = [
-        render_topic(bot.active_topic, bot),
-        render_choice(['withdraw', 'challenge'], bot)
+        song.render(bot, size='small')
+        for song in songs[::-1][:limit]
     ]
 
-    text = "Signal proposed to the registry"
+    return {
+               'text': text,
+               'attachments': attachments
+           }, True
+
+
+def handle_command_add_song(args, event, bot):
+    track_uri = args[-1][1:-1]
+    try:
+        event['metadata'] = get_track(bot.connections['spotify'], track_uri)
+    except Exception as e:
+        event['metadata'] = {}
+        print(e)
+    event['metadata']['uri'] = track_uri
+    tx = bot.put('song', event)
+    bot.pull(tx_id=tx['id'])
+    bot.store['active']['song'] = -1
+    attachments = [
+        bot.active_song.render(bot),
+        # render_choice(['propose'], bot)
+    ]
+
+    text = "Song {} added".format(bot.active_song.title)
 
     return {
-            'text': text,
-            'attachments': attachments
-        }, True
+               'text': text,
+               'attachments': attachments
+           }, True
+
+
+def handle_command_get_song(args, event, bot):
+    song = None
+    song_id = args[1]
+    if 'spotify:track' in song_id:
+        song = get_song_by_uri(bot, song_id[1:-1])
+    else:
+        try:
+            song = bot.store['songs'][song_id]
+        except Exception as e:
+            print(e)
+    if not song:
+        handle_command_add_song([song_id], event, bot)
+        song = get_song_by_uri(bot, song_id[1:-1])
+
+    bot.pull(tx_id=song.id)
+    song = get_song_by_uri(bot, song.uri)
+
+    attachments = [
+        song.render(bot),
+        # render_choice(['withdraw', 'challenge'], bot)
+    ]
+
+    text = "Song *{} - {}*".format(song.artist, song.title)
+
+    return {
+               'text': text,
+               'attachments': attachments
+           }, True
+
+
+def handle_command_map(args, event, bot):
+    handle_command_get_song(['get', *args], event, bot)
+    song = get_song_by_uri(bot, args[0][1:-1])
+
+    genre = get_genre_by_name(bot, args[1])
+    if not genre:
+        handle_command_add_genre([], event, bot)
+        genre = get_genre_by_name(bot, args[1])
+
+    event['map'] = genre.value
+
+    bot.pull(tx_id=song.id)
+    bot.put('map', event, song.recent)
+    bot.pull(tx_id=song.id)
+
+    attachments = [
+        bot.active_song.render(bot),
+        # render_choice(['withdraw', 'challenge'], bot)
+    ]
+
+    text = "Song *{} - {}* mapped to genre *{}*".format(song.artist, song.title, genre.value)
+
+    return {
+               'text': text,
+               'attachments': attachments
+           }, True
+
+
+def handle_command_self(args, event, bot):
+    if 'attachments' in event \
+            and len(event['attachments']) == 1 \
+            and event['text'][:4] == 'Song':
+        bot.connections['slack'].api_call(
+            "reactions.add",
+            channel=event['channel'],
+            name="thumbsup",
+            timestamp=event['ts']
+        )
+        bot.connections['slack'].api_call(
+            "reactions.add",
+            channel=event['channel'],
+            name="thumbsdown",
+            timestamp=event['ts']
+        )
+        bot.store['messages'][event['ts']] = event
+    return None, True
+
+
+def handle_command_reaction(args, event, bot):
+    msg = bot.store['messages'].get(event['item']['ts'])
+    if msg:
+        song = get_song_by_uri(bot, msg['attachments'][0]['author_name'])
+        bot.pull(tx_id=song.id)
+        event['reaction'] = args[0]
+        bot.put('reaction', event, song.recent)
+        bot.pull(tx_id=song.id)
+        text = "Reaction *{}* added to song *{} - {}*".format(args[0], song.artist, song.title)
+
+        return {
+                   'text': text,
+                   'attachments': []
+               }, True
+
+    return None, True
+
+
+def get_song_by_uri(bot, uri):
+    song = [s for s in bot.store['songs'].values() if uri in s.uri]
+    if len(song) > 0:
+        return song[0]
+    return None
+
+
+def get_genre_by_name(bot, genre):
+    genres = [g for g in bot.store['genres'].values() if genre == g.value]
+    if len(genres) > 0:
+        return genres[0]
+    return None

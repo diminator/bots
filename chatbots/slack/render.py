@@ -1,6 +1,3 @@
-from chatbots.slack.topic import Topic
-
-
 def render_choice(choices, bot):
     return {
         "text": "What do you want to do?",
@@ -25,33 +22,65 @@ def render_choice(choices, bot):
     }
 
 
-def render_topic(topic, bot):
-    asset = topic.recent if isinstance(topic, Topic) else topic
-    tx_id = asset['tx']['id'] if 'tx' in asset else asset['id']
-    user_id = asset['data']['event']['user']
-    user_name = bot.store['users'][user_id]['profile']['display_name']
+def generate_small_response(
+        tx_id, tx_uri,
+        title=None,
+        title_link=None,
+        field_title=None,
+        field_value=None,
+        thumb_url=None,
+        footer=None,
+        ts=None):
     return {
-        "fallback": "Signal claim",
-        "color": "#eeeeee",
+        "fallback": "Could not render",
+        "color": "#cc99ff",
         "pretext": None,
-        "author_name": "{}.{}".format(asset['data']['namespace'], tx_id[:8]),
-        "author_link": "{}api/v1/transactions/{}".format(bot.options['bdb']['uri'], tx_id),
+        "author_name": "{}".format(tx_id),
+        "author_link": tx_uri,
         "author_icon": None,
-        "title": None,
-        "title_link": None,
+        "title": title,
+        "title_link": title_link,
+        "text": "\n",
+        "fields": [],
+        "image_url": None,
+        "thumb_url": None,
+        "footer": None,
+        "footer_icon": None,
+        "ts": None
+    }
+
+
+def generate_default_response(
+        tx_id, tx_uri,
+        title=None,
+        title_link=None,
+        field_title=None,
+        field_value=None,
+        thumb_url=None,
+        footer=None,
+        ts=None):
+    return {
+        "fallback": "Could not render",
+        "color": "#cc99ff",
+        "pretext": None,
+        "author_name": "{}".format(tx_id),
+        "author_link": tx_uri,
+        "author_icon": None,
+        "title": title,
+        "title_link": title_link,
         "text": "\n",
         "fields": [
             {
-                "title": asset['data']['namespace'].split('.')[-1],
-                "value": asset['data']['message'].lstrip(asset['data']['namespace'].split('.')[-1]),
+                "title": field_title,
+                "value": field_value,
                 "short": False
             }
         ],
         "image_url": None,
-        "thumb_url": None,
-        "footer": "#{} @{}".format(asset['data']['event']['channel'], user_name),
+        "thumb_url": thumb_url,
+        "footer": footer,
         "footer_icon": "https://platform.slack-edge.com/img/default_application_icon.png",
-        "ts": asset['data']['event']['ts']
+        "ts": ts
     }
 
 
