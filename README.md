@@ -1,6 +1,16 @@
 # BigchainDB Bots
 
-* [for Aquarius developers](./docs/for_aquarius_devs/README.md), i.e. the people working on Aquarius itself
+```
+virtualenv venv -p python3
+source vevn/bin/activate
+
+pip install -e .
+
+export CONFIG_FILE=config.ini
+python chatbots/run.py
+```
+
+or use `docker`
 
 ## License
 
