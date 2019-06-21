@@ -1,10 +1,10 @@
 #!/usr/bin/python
 import time
 
-from chatbots.slack.bot import SlackBot
+from chatbots.slack.ocean.bot import OceanSlackBot
 
 if __name__ == "__main__":
-    bot = SlackBot()
+    bot = OceanSlackBot()
 
     if bot.connect():
         print("Starter Bot connected and running!")
