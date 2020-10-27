@@ -5,7 +5,7 @@ certifi==2018.10.15
 cffi==1.11.5
 chardet==3.0.4
 cryptoconditions==0.8.0
-cryptography==2.3.1
+cryptography==3.2
 idna==2.7
 -e git+git@github.com:diminator/bots.git@bf433fac0234690fa70e4e89482d7aba1590f4c1#egg=ocean_aquarius
 pyasn1==0.4.4
