@@ -1,7 +1,7 @@
 asn1crypto==0.24.0
 base58==1.0.2
 bigchaindb-driver==0.6.2
-certifi==2018.10.15
+certifi==2022.12.7
 cffi==1.11.5
 chardet==3.0.4
 cryptoconditions==0.8.0
